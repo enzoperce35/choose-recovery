@@ -1,0 +1,16 @@
+{
+  "short_name": "Choose Recovery",
+  "name": "Tataya Ka? - Bakit",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0D0F12",
+  "theme_color": "#0D0F12",
+  "display": "standalone"
+}

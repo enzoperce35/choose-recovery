@@ -34,10 +34,21 @@ export default function App() {
   const [audioActive, setAudioActive] = useState(false);
   const audioCtxRef = useRef(null);
 
-  const startGroundingAudio = () => {
-    if (audioCtxRef.current) return;
+  const startGroundingAudio = async () => {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
+
+      // If context already exists, resume it if the browser suspended it
+      if (audioCtxRef.current) {
+        if (audioCtxRef.current.state === 'suspended') {
+          await audioCtxRef.current.resume();
+        }
+        if (audioCtxRef.current.state === 'running') {
+          setAudioActive(true);
+        }
+        return;
+      }
+
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
 
@@ -61,9 +72,14 @@ export default function App() {
       subGain.connect(ctx.destination);
       subOsc.start();
 
-      setAudioActive(true);
+      // Attempt immediate resume in case browser created it in suspended state
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+
+      setAudioActive(ctx.state === 'running');
     } catch {
-      // Audio waits for user interaction
+      setAudioActive(false);
     }
   };
 
@@ -139,7 +155,7 @@ export default function App() {
 
   return (
     <div
-      onClick={startGroundingAudio}
+      onPointerDown={startGroundingAudio}
       className="relative min-h-screen bg-[#0D0F12] text-[#EAE6DF] flex flex-col items-center justify-between py-10 px-6 overflow-hidden select-none"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#07080A_100%)]" />
@@ -151,7 +167,7 @@ export default function App() {
         } ${breathPhase === 'Inhale' ? 'scale-110 opacity-90' : 'scale-75 opacity-40'}`}
       />
 
-      {/* Clean Top Breathing Cue (Recovery link removed) */}
+      {/* Top Breathing Cue */}
       <div className="relative z-10 flex items-center space-x-3 opacity-70">
         <span
           className={`w-2 h-2 rounded-full transition-transform duration-[4000ms] ${
@@ -229,13 +245,13 @@ export default function App() {
               Isara mo na ang browser na ito. Piliin mo ang sarili mo ngayon.
             </p>
 
-            {/* Borderless, subtle standout "Choose Recovery" link right below */}
             <div
               className={`pt-2 transition-all duration-[1600ms] delay-700 ease-out ${
                 groundedVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
               }`}
             >
               <button
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   stopAudio();
@@ -253,6 +269,7 @@ export default function App() {
               }`}
             >
               <button
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={handleRestartPause}
                 className="px-6 py-3 rounded-lg border border-stone-800 text-stone-500 hover:text-stone-300 hover:border-stone-600 font-mono text-xs tracking-wider uppercase transition-colors cursor-pointer"
               >
@@ -263,9 +280,10 @@ export default function App() {
         )}
       </div>
 
+      {/* Bottom Progress / Audio Unlock Cue */}
       <div className="relative z-10 h-8 flex items-center justify-center">
         {!audioActive ? (
-          <span className="font-mono text-[11px] text-stone-600 tracking-widest uppercase">
+          <span className="font-mono text-[11px] text-amber-300/70 tracking-widest uppercase animate-pulse">
             Tap anywhere for grounding sound
           </span>
         ) : (
