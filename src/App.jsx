@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Recovery from './Recovery';
 
 const SCENE_LINES = [
   { 
@@ -9,7 +10,7 @@ const SCENE_LINES = [
   { 
     text: "Sa Unang Taya Ka lang may control", 
     delay: 1600,
-    style: "text-3xl md:text-5xl text-stone-100 font-bold tracking-tight" 
+    style: "text-3xl md:text-5xl text-stone-100 font-bold tracking-tight"  
   },
   { 
     text: "Ang mga susunod?", 
@@ -18,15 +19,17 @@ const SCENE_LINES = [
   },
   { 
     text: "Sila na.", 
-    delay: 5400, // Appears last after a deliberate 2-second pause
+    delay: 5400,
     style: "text-3xl md:text-5xl text-amber-300/90 font-semibold tracking-[0.18em] pt-4 border-t border-stone-800/80 max-w-xs mx-auto" 
   },
 ];
 
 export default function App() {
-  // Phases: 'tataya' -> 'bakit' -> 'scenes' -> 'grounded'
+  const [view, setView] = useState('pause');
+
   const [phase, setPhase] = useState('tataya');
   const [visibleLines, setVisibleLines] = useState(0);
+  const [groundedVisible, setGroundedVisible] = useState(false);
   const [breathPhase, setBreathPhase] = useState('Inhale');
   const [audioActive, setAudioActive] = useState(false);
   const audioCtxRef = useRef(null);
@@ -38,7 +41,6 @@ export default function App() {
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
 
-      // Deep grounding base tone (136.1 Hz)
       const baseOsc = ctx.createOscillator();
       const baseGain = ctx.createGain();
       baseOsc.type = 'sine';
@@ -49,7 +51,6 @@ export default function App() {
       baseGain.connect(ctx.destination);
       baseOsc.start();
 
-      // Subtle low sub-pulse (68.05 Hz)
       const subOsc = ctx.createOscillator();
       const subGain = ctx.createGain();
       subOsc.type = 'sine';
@@ -62,7 +63,7 @@ export default function App() {
 
       setAudioActive(true);
     } catch {
-      // Audio blocked until user taps screen
+      // Audio waits for user interaction
     }
   };
 
@@ -74,48 +75,46 @@ export default function App() {
     }
   };
 
-  // Automatic sequence orchestration on mount
   useEffect(() => {
+    if (view !== 'pause') return;
     startGroundingAudio();
 
-    const t1 = setTimeout(() => {
-      setPhase('bakit');
-    }, 2200);
-
-    const t2 = setTimeout(() => {
-      setPhase('scenes');
-    }, 4400);
+    const t1 = setTimeout(() => setPhase('bakit'), 2200);
+    const t2 = setTimeout(() => setPhase('scenes'), 4400);
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
-      stopAudio();
     };
-  }, []);
+  }, [view]);
 
-  // Exact custom timing for each line in the scene
+  useEffect(() => () => stopAudio(), []);
+
   useEffect(() => {
-    if (phase !== 'scenes') return;
+    if (view !== 'pause' || phase !== 'scenes') return;
 
     setVisibleLines(0);
     const timers = SCENE_LINES.map((line, index) =>
-      setTimeout(() => {
-        setVisibleLines(index + 1);
-      }, line.delay)
+      setTimeout(() => setVisibleLines(index + 1), line.delay)
     );
 
-    // Hold "Sila na." on screen for 3.2 seconds before moving to final anchor
-    const endSceneTimer = setTimeout(() => {
-      setPhase('grounded');
-    }, 8600);
+    const endSceneTimer = setTimeout(() => setPhase('grounded'), 8600);
 
     return () => {
       timers.forEach(clearTimeout);
       clearTimeout(endSceneTimer);
     };
-  }, [phase]);
+  }, [view, phase]);
 
-  // Breathing pulse cycle
+  useEffect(() => {
+    if (view !== 'pause' || phase !== 'grounded') {
+      setGroundedVisible(false);
+      return;
+    }
+    const fadeTimer = setTimeout(() => setGroundedVisible(true), 150);
+    return () => clearTimeout(fadeTimer);
+  }, [view, phase]);
+
   useEffect(() => {
     const breathInterval = setInterval(() => {
       setBreathPhase((prev) => (prev === 'Inhale' ? 'Exhale' : 'Inhale'));
@@ -123,33 +122,36 @@ export default function App() {
     return () => clearInterval(breathInterval);
   }, []);
 
-  const handleRestart = () => {
+  const handleRestartPause = () => {
+    setView('pause');
     startGroundingAudio();
     setPhase('tataya');
     setVisibleLines(0);
+    setGroundedVisible(false);
 
     setTimeout(() => setPhase('bakit'), 2200);
-    setTimeout(() => {
-      setPhase('scenes');
-    }, 4400);
+    setTimeout(() => setPhase('scenes'), 4400);
   };
+
+  if (view === 'recovery') {
+    return <Recovery onBack={handleRestartPause} />;
+  }
 
   return (
     <div
       onClick={startGroundingAudio}
       className="relative min-h-screen bg-[#0D0F12] text-[#EAE6DF] flex flex-col items-center justify-between py-10 px-6 overflow-hidden select-none"
     >
-      {/* Subtle Vignette & Breathing Ambient Glow */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#07080A_100%)]" />
       <div
         className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl pointer-events-none transition-all duration-[4000ms] ease-in-out ${
           phase === 'grounded'
             ? 'bg-emerald-950/20 w-[520px] h-[520px]'
-            : 'bg-amber-950/15 w-[480px] h-[480px]'
+            : 'bg-red-950/15 w-[480px] h-[480px]'
         } ${breathPhase === 'Inhale' ? 'scale-110 opacity-90' : 'scale-75 opacity-40'}`}
       />
 
-      {/* Top Breathing Cue */}
+      {/* Clean Top Breathing Cue (Recovery link removed) */}
       <div className="relative z-10 flex items-center space-x-3 opacity-70">
         <span
           className={`w-2 h-2 rounded-full transition-transform duration-[4000ms] ${
@@ -163,7 +165,6 @@ export default function App() {
 
       {/* CENTER STAGE */}
       <div className="relative z-10 w-full max-w-3xl flex items-center justify-center my-auto min-h-[340px]">
-        {/* OPENING CONFRONTATION: "Tataya ka?" slides left -> "Bakit?" appears */}
         {(phase === 'tataya' || phase === 'bakit') && (
           <div className="relative w-full flex items-center justify-center">
             <h1
@@ -188,7 +189,6 @@ export default function App() {
           </div>
         )}
 
-        {/* CORE REALITY CHECK */}
         {phase === 'scenes' && (
           <div className="w-full space-y-5 md:space-y-7 text-center px-2">
             {SCENE_LINES.map((line, idx) => (
@@ -208,18 +208,52 @@ export default function App() {
           </div>
         )}
 
-        {/* FINAL GROUNDED ANCHOR */}
         {phase === 'grounded' && (
-          <div className="text-center space-y-8 max-w-xl transition-all duration-1000">
-            <p className="font-serif text-4xl md:text-6xl text-stone-100 font-semibold leading-snug">
+          <div className="text-center space-y-6 max-w-xl">
+            <p
+              className={`font-serif text-4xl md:text-6xl text-stone-100 font-semibold leading-snug transition-all duration-[1600ms] ease-out transform ${
+                groundedVisible
+                  ? 'opacity-100 translate-y-0 scale-100'
+                  : 'opacity-0 translate-y-5 scale-95'
+              }`}
+            >
               Huwag mo nang ituloy.
             </p>
-            <p className="font-serif text-lg md:text-xl text-stone-400 leading-relaxed">
+            <p
+              className={`font-serif text-lg md:text-xl text-stone-400 leading-relaxed transition-all duration-[1600ms] delay-500 ease-out transform ${
+                groundedVisible
+                  ? 'opacity-100 translate-y-0'
+                  : 'opacity-0 translate-y-4'
+              }`}
+            >
               Isara mo na ang browser na ito. Piliin mo ang sarili mo ngayon.
             </p>
-            <div className="pt-6 flex items-center justify-center">
+
+            {/* Borderless, subtle standout "Choose Recovery" link right below */}
+            <div
+              className={`pt-2 transition-all duration-[1600ms] delay-700 ease-out ${
+                groundedVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+              }`}
+            >
               <button
-                onClick={handleRestart}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stopAudio();
+                  setView('recovery');
+                }}
+                className="font-serif text-xl md:text-2xl text-emerald-300/90 hover:text-emerald-200 tracking-wide decoration-emerald-500/40 hover:decoration-emerald-400 underline-offset-8 drop-shadow-[0_0_12px_rgba(52,211,153,0.2)] transition-all duration-300 cursor-pointer"
+              >
+                Choose Recovery
+              </button>
+            </div>
+
+            <div
+              className={`pt-8 flex items-center justify-center transition-all duration-[1600ms] delay-1000 ease-out ${
+                groundedVisible ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <button
+                onClick={handleRestartPause}
                 className="px-6 py-3 rounded-lg border border-stone-800 text-stone-500 hover:text-stone-300 hover:border-stone-600 font-mono text-xs tracking-wider uppercase transition-colors cursor-pointer"
               >
                 Basahin ulit
@@ -229,7 +263,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Bottom Progress Line */}
       <div className="relative z-10 h-8 flex items-center justify-center">
         {!audioActive ? (
           <span className="font-mono text-[11px] text-stone-600 tracking-widest uppercase">
