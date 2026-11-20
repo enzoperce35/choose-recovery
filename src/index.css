@@ -5,3 +5,12 @@
   --font-serif: "Merriweather", Georgia, serif;
   --font-mono: "JetBrains Mono", monospace;
 }
+
+@keyframes settle {
+  0%   { opacity: 0; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
